@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Collections.Concurrent;
+using System.IO;
 using WordChain.Common;
 
 namespace WordChain.Server
@@ -38,6 +39,61 @@ namespace WordChain.Server
             };
 
             string clientId = Guid.NewGuid().ToString();
+
+            try
+            {
+                while (true)
+                {
+                    string? line = await reader.ReadLineAsync();
+
+                    if (line == null)
+                        break;
+
+                    var packet = Packet.FromJson(line);
+
+                    if (packet == null)
+                        continue;
+
+                    Console.WriteLine(
+                        $"Nhận từ [{clientId}]: {packet.Type} - {packet.Payload}");
+
+                    if (packet.Type == PacketType.Connect)
+                    {
+                        var player = new PlayerInfo
+                        {
+                            Id = clientId,
+                            Nickname = packet.Payload
+                        };
+
+                        _clients[clientId] = (client, player);
+
+                        Console.WriteLine(
+                            $"Người chơi [{player.Nickname}] đã tham gia.");
+
+                        var response = new Packet
+                        {
+                            Type = PacketType.ConnectOK,
+                            Payload = "Kết nối thành công!"
+                        };
+
+                        await writer.WriteLineAsync(response.ToJson());
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(
+                    $"Client [{clientId}] ngắt kết nối: {ex.Message}");
+            }
+            finally
+            {
+                _clients.TryRemove(clientId, out _);
+
+                client.Close();
+
+                Console.WriteLine(
+                    $"Client [{clientId}] đã rời khỏi server.");
+            }
         }
     }
 }
