@@ -134,9 +134,10 @@ partial class Form1
         //
         // Panel 
         //
-        var pnlConnect = new Panel();
+        pnlConnect = new Panel();
         pnlConnect.Location = new Point(20, 20);
         pnlConnect.Size = new Size(400, 220);
+        pnlConnect.Visible = false;
         this.Controls.Add(pnlConnect);
 
         // Label IP
@@ -165,26 +166,12 @@ partial class Form1
         txtPort.Location = new Point(0, 90);
         txtPort.Size = new Size(200, 30);
         pnlConnect.Controls.Add(txtPort);
-        // Label Nickname
-        var lblNickname = new Label();
-        lblNickname.Text = "Biệt danh:";
-        lblNickname.Location = new Point(0, 130);
-        lblNickname.AutoSize = true;
-        pnlConnect.Controls.Add(lblNickname);
-        // TextBox Nickname
-        txtNickname = new TextBox();
-        txtNickname.Name = "txtNickname";
-        txtNickname.PlaceholderText = "Nhập tên của bạn...";
-        txtNickname.Location = new Point(0, 150);
-        txtNickname.Size = new Size(200, 30);
-        pnlConnect.Controls.Add(txtNickname);
         // Button Kết nối
         btnConnect = new Button();
         btnConnect.Name = "btnConnect";
         btnConnect.Text = "Kết nối";
         btnConnect.Location = new Point(210, 150);
         btnConnect.Size = new Size(100, 30);
-        btnConnect.Click += btnConnect_Click;
         pnlConnect.Controls.Add(btnConnect);
         // Label Status
         lblStatus = new Label();
@@ -1333,6 +1320,8 @@ partial class Form1
         pnlPhongTop.ResumeLayout(false);
         pnlPhongTop.PerformLayout();
         ResumeLayout(false);
+        pnlConnect.Visible = false;
+
     }
 
     #endregion
