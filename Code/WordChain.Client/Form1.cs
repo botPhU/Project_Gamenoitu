@@ -5,184 +5,9 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using WordChain.Common;
-// namespace WordChain.Client
-// {
-//     public partial class Form1 : Form
-//     {
-//         // Khai báo các đối tượng kết nối mạng TCP
-//         private TcpClient? _client;
-//         private NetworkStream? _stream;
-//         private StreamReader? _reader;
-//         private StreamWriter? _writer;
-//         private bool _isConnected = false;
 
-//         public Form1()
-//         {
-//             InitializeComponent();
-
-//             // TODO 1: Thiết kế giao diện (UI Design)
-//             // - Bạn có thể kéo thả các điều khiển (Controls) trong giao diện thiết kế (Designer)
-//             // - Giao diện nên có:
-//             //   1. Màn hình kết nối: Nhập IP, Cổng (Port), Biệt danh (Nickname), chọn ảnh đại diện.
-//             //   2. Màn hình sảnh (Lobby): Xem danh sách phòng, tạo phòng, tham gia phòng và khung chat chung.
-//             //   3. Màn hình phòng game: Danh sách người chơi trong phòng kèm điểm/mạng số, ô chat phòng, 
-//             //      luồng hiển thị lịch sử từ nối, thanh tiến trình thời gian đếm ngược, ô nhập từ để nộp.
-//         }
-
-//         // TODO 2: Thiết lập kết nối đến Server
-//         // - Khi nhấn nút "Kết nối" (Connect button click event):
-//         //   + Khởi tạo: _client = new TcpClient();
-//         //   + Kết nối bất đồng bộ: await _client.ConnectAsync(ip, port);
-//         //   + Lấy luồng dữ liệu: _stream = _client.GetStream();
-//         //   + Tạo bộ đọc/ghi: _reader = new StreamReader(_stream); _writer = new StreamWriter(_stream) { AutoFlush = true };
-//         //   + Gửi gói tin đăng nhập chứa Nickname lên Server.
-//         //   + Khởi chạy một Task chạy nền để liên tục đọc dữ liệu gửi về từ Server: Task.Run(ReceiveMessagesAsync);
-//         private async void BtnConnect_Click(object sender, EventArgs e)
-//         {
-//             string ip = txtIp.Text.Trim();
-//             int port = int.Parse(txtPort.Text.Trim());
-//             string nickname = txtNickname.Text.Trim();
-
-//             if (string.IsNullOrEmpty(nickname))
-//             {
-//                 MessageBox.Show("Vui lòng nhập biệt danh!");
-//                 return;
-//             }
-
-//             try
-//             {
-//                 lblStatus.Text = "Đang kết nối...";
-//                 btnConnect.Enabled = false;
-
-//                 _client = new TcpClient();
-//                 //kết nối tới server
-//                 await _client.ConnectAsync(ip, port);
-
-//                 _stream = _client.GetStream();
-
-//                 _reader = new StreamReader(stream, System.Text.Encoding.UTF8);
-//                 _writer = new StreamWriter(stream, System.Text.Encoding.UTF8)
-//                 {
-//                     AutoFlush = true
-//                 };
-
-//                 _isConnected = true;
-
-//                 // Gửi nickname lên Server
-//                 var packet = new Packet
-//                 {
-//                     Type = PacketType.Connect,
-//                     Payload = nickname
-//                 };
-
-//                 await _writer.WriteLineAsync(packet.ToJson());
-
-//                 lblStatus.Text = $"✅ Đã kết nối! Xin chào {nickname}";
-
-//                 // Luồng nhận dữ liệu từ Server
-//                 _ = Task.Run(ReceiveMessagesAsync);
-//             }
-//             catch (Exception ex)
-//             {
-//                 lblStatus.Text = "❌ Kết nối thất bại!";
-//                 btnConnect.Enabled = true;
-//                 MessageBox.Show($"Lỗi: {ex.Message}");
-//             }
-//         }
-
-//         // TODO 3: Vòng lặp nhận dữ liệu từ Server (Background Reader Loop)
-//         // - Chạy ngầm để liên tục lắng nghe Server:
-//         //   while (_isConnected) { string line = await _reader.ReadLineAsync(); ... }
-//         // - Giải mã chuỗi JSON nhận được thành đối tượng gói tin.
-//         // - LƯU Ý QUAN TRỌNG: Bạn không được cập nhật trực tiếp giao diện (WinForms) từ luồng chạy nền này 
-//         //   để tránh lỗi "Cross-thread operation not valid". Hãy sử dụng:
-//         //   this.Invoke(new Action(() => { UpdateUI(packet); }));
-//         private async Task ReceiveMessagesAsync()
-//         {
-//             try
-//             {
-//                 while (_isConnected)
-//                 {
-//                     string? line = await _reader!.ReadLineAsync();
-
-//                     if (line == null)
-//                         break;
-
-//                     var packet = Packet.FromJson(line);
-
-//                     if (packet == null)
-//                         continue;
-
-//                     this.Invoke(new Action(() =>
-//                     {
-//                         switch (packet.Type)
-//                         {
-//                             case PacketType.ConnectOK: 
-//                                     lblStatus.Text = "🟢 " + packet.Payload; 
-//                                     break;
-//                             //case PacketType.Chat: // Tuần sau xử lý chat break;
-//                             case PacketType.Disconnect: 
-//                                     lblStatus.Text = "🔴 Server đã ngắt kết nối."; 
-//                                     break; 
-//                         }
-//                     }));
-//                 }
-//             }
-//             catch
-//             {
-//                 this.Invoke(new Action(() =>
-//                 {
-//                     lblStatus.Text = "⚠️ Mất kết nối với Server.";
-//                 }));
-//             }
-//         }
-
-//         private void Form1_Load(object sender, EventArgs e)
-//         {
-
-//         }
-
-//         // TODO 4: Xử lý sự kiện người dùng (UI Events)
-//         // - Sự kiện tạo phòng: Gửi yêu cầu CreateRoom (Tên phòng, số người, thời gian).
-//         //   _writer.WriteLine(jsonCreateRoomPacket);
-//         // - Sự kiện nộp từ nối: Lấy chuỗi trong ô TextBox, gửi yêu cầu SubmitWord lên Server.
-//         // - Sự kiện chat room: Lấy nội dung chat gửi yêu cầu Chat lên Server.
-//         // - Sự kiện rời phòng: Thoát khỏi phòng hiện tại để quay về sảnh chờ (Lobby).
-
-//         protected override void OnFormClosing(FormClosingEventArgs e) 
-//         { 
-//             try 
-//             { 
-//                 _isConnected = false; 
-//                 _reader?.Close(); 
-//                 _writer?.Close(); 
-//                 _stream?.Close(); 
-//                 _client?.Close(); 
-//             } 
-//             catch 
-//             { } 
-//             base.OnFormClosing(e); 
-//         } 
-//         // TODO Tuần sau
-//         private async void BtnCreateRoom_Click(object sender, EventArgs e) 
-//         { 
-//             // Gửi CreateRoom Packet
-//         } 
-//         private async void BtnSendChat_Click(object sender, EventArgs e) 
-//         { 
-//             // Gửi Chat Packet
-//         } 
-//         private async void BtnSubmitWord_Click(object sender, EventArgs e) 
-//         { 
-//             // Gửi SubmitWord Packet
-//         }
-//     }
-// }
-
-using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
-using System.Windows.Forms;
 
 namespace WordChain.Client;
 
@@ -206,6 +31,7 @@ public partial class Form1 : Form
     private Label? _lblTrangThaiDangNhap;
     private Label? _lblTrangThaiDangKy;
     private Label? _lblTrangThaiChoiNhanh;
+    private Panel pnlConnect;
 
     // Khai báo các đối tượng kết nối mạng TCP
     private TcpClient? _client;
@@ -213,6 +39,8 @@ public partial class Form1 : Form
     private StreamReader? _reader;
     private StreamWriter? _writer;
     private bool _isConnected = false;
+
+
 
     public Form1()
     {
@@ -223,49 +51,6 @@ public partial class Form1 : Form
         HienManHinh(tabDangNhap);
     }
 
-    // Khi nhấn nút "Kết nối"
-    private async void btnConnect_Click(object sender, EventArgs e)
-    {
-        string ip = txtIp.Text.Trim();
-        string nickname = txtNickname.Text.Trim();
-
-        if (!int.TryParse(txtPort.Text.Trim(), out int port))
-        {
-            MessageBox.Show("Cổng không hợp lệ!");
-            return;
-        }
-        if (string.IsNullOrEmpty(nickname))
-        {
-            MessageBox.Show("Vui lòng nhập biệt danh!");
-            return;
-        }
-
-        try
-        {
-            lblStatus.Text = "Đang kết nối...";
-            btnConnect.Enabled = false;
-
-            _client = new TcpClient();
-            await _client.ConnectAsync(ip, port);
-
-            var stream = _client.GetStream();
-            _reader = new StreamReader(stream, System.Text.Encoding.UTF8);
-            _writer = new StreamWriter(stream, System.Text.Encoding.UTF8) { AutoFlush = true };
-            _isConnected = true;
-
-            var packet = new Packet { Type = PacketType.Connect, Payload = nickname };
-            await _writer.WriteLineAsync(packet.ToJson());
-
-            lblStatus.Text = $"✅ Đã kết nối! Xin chào {nickname}";
-            _ = Task.Run(ReceiveMessagesAsync);
-        }
-        catch (Exception ex)
-        {
-            lblStatus.Text = "❌ Kết nối thất bại!";
-            btnConnect.Enabled = true;
-            MessageBox.Show($"Lỗi: {ex.Message}");
-        }
-    }
 
     // Lắng nghe tin từ Server
     private async Task ReceiveMessagesAsync()
@@ -1330,21 +1115,61 @@ public partial class Form1 : Form
     {
         HienManHinh(tabChoiNhanh);
     }
-
-    private void btnDangNhap_Click(object sender, EventArgs e)
+    // cập nhật lại đăng nhập kết nối với server
+    private async void btnDangNhap_Click(object sender, EventArgs e)
     {
-        if (string.IsNullOrWhiteSpace(txtDangNhapTenDangNhap.Text) ||
-            string.IsNullOrWhiteSpace(txtDangNhapMatKhau.Text))
+        string username = txtDangNhapTenDangNhap.Text.Trim();
+        string password = txtDangNhapMatKhau.Text.Trim();
+
+        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
         {
-            HienThiTrangThai(_lblTrangThaiDangNhap, "Bạn hãy nhập đủ tên đăng nhập và mật khẩu nhé.", _mauLoi);
+            HienThiTrangThai(_lblTrangThaiDangNhap,
+                "Bạn hãy nhập đủ tên đăng nhập và mật khẩu nhé.", _mauLoi);
             return;
         }
 
-        HienThiTrangThai(_lblTrangThaiDangNhap, "Đăng nhập xong rồi. Mời bạn vào sảnh chờ nhé.", _mauThanhCong);
+        // TODO: kiểm tra mật khẩu với server nếu có
+        HienThiTrangThai(_lblTrangThaiDangNhap,
+            "Đăng nhập xong rồi. Mời bạn vào sảnh chờ nhé.", _mauThanhCong);
+
+        // Kết nối server, dùng username làm nickname
+        await ConnectToServer(username);
+
         CapNhatTenNguoiChoi();
         HienManHinh(tabSanhCho);
         CapNhatTrangThaiDanhSach();
     }
+
+// kết nối tới server 
+    private async Task ConnectToServer(string nickname)
+    {
+        string ip = "127.0.0.1";   // Ẩn, cố định
+        int port = 8888;           // Ẩn, cố định
+
+        try
+        {
+            _client = new TcpClient();
+            await _client.ConnectAsync(ip, port);
+
+            var stream = _client.GetStream();
+            _reader = new StreamReader(stream, System.Text.Encoding.UTF8);
+            _writer = new StreamWriter(stream, System.Text.Encoding.UTF8) { AutoFlush = true };
+            _isConnected = true;
+
+            var packet = new Packet { Type = PacketType.Connect, Payload = nickname };
+            await _writer.WriteLineAsync(packet.ToJson());
+
+            lblStatus.Text = $"✅ Đã kết nối! Xin chào {nickname}";
+            _ = Task.Run(ReceiveMessagesAsync);
+        }
+        catch (Exception ex)
+        {
+            lblStatus.Text = "❌ Kết nối thất bại!";
+            _isConnected = false;
+            MessageBox.Show($"Lỗi: {ex.Message}");
+        }
+    }
+
 
     private void btnMoDangNhapTuDangKy_Click(object sender, EventArgs e)
     {
@@ -1363,13 +1188,13 @@ public partial class Form1 : Form
             string.IsNullOrWhiteSpace(txtDangKyNhapLaiMatKhau.Text))
         {
             HienThiTrangThai(_lblTrangThaiDangKy, "Bạn hãy điền đủ thông tin trước khi tạo tài khoản nhé.", _mauLoi);
-            return;
+                return;
         }
 
         if (txtDangKyMatKhau.Text != txtDangKyNhapLaiMatKhau.Text)
         {
             HienThiTrangThai(_lblTrangThaiDangKy, "Hai ô mật khẩu chưa giống nhau, mình kiểm tra lại nhé.", _mauLoi);
-            return;
+                return;
         }
 
         HienThiTrangThai(_lblTrangThaiDangKy, "Xong rồi, tài khoản của bạn đã sẵn sàng để tiếp tục.", _mauThanhCong);
@@ -1377,17 +1202,31 @@ public partial class Form1 : Form
         HienManHinh(tabDangNhap);
     }
 
-    private void btnBatDauChoiNhanh_Click(object sender, EventArgs e)
+    // cập nhật username chơi nhanh với server
+    private async void btnBatDauChoiNhanh_Click(object sender, EventArgs e)
     {
-        if (string.IsNullOrWhiteSpace(txtChoiNhanhTenNguoiChoi.Text))
+        string quickName = txtChoiNhanhTenNguoiChoi.Text.Trim();
+
+        if (string.IsNullOrWhiteSpace(quickName))
         {
-            HienThiTrangThai(_lblTrangThaiChoiNhanh, "Bạn hãy nhập tên hiển thị trước khi bắt đầu nhé.", _mauLoi);
+            HienThiTrangThai(_lblTrangThaiChoiNhanh,
+                "Bạn hãy nhập tên hiển thị trước khi bắt đầu nhé.", _mauLoi);
             return;
         }
 
-        HienThiTrangThai(_lblTrangThaiChoiNhanh, "Đã lưu tên hiển thị. Chuẩn bị vào chơi thôi.", _mauThanhCong);
-        txtDangNhapTenDangNhap.Text = txtChoiNhanhTenNguoiChoi.Text.Trim();
-        CapNhatTenNguoiChoi(txtChoiNhanhTenNguoiChoi.Text.Trim());
+        HienThiTrangThai(_lblTrangThaiChoiNhanh,
+            "Đã lưu tên hiển thị. Chuẩn bị vào chơi thôi.", _mauThanhCong);
+
+        // Gán tên này vào ô đăng nhập để đồng bộ
+        txtDangNhapTenDangNhap.Text = quickName;
+
+        // Cập nhật tên người chơi trong giao diện
+        CapNhatTenNguoiChoi(quickName);
+
+        // Kết nối server, gửi tên chơi nhanh như nickname
+        await ConnectToServer(quickName);
+
+        // Sau khi kết nối thành công thì chuyển sang sảnh chờ
         HienManHinh(tabSanhCho);
         CapNhatTrangThaiDanhSach();
     }
@@ -1489,11 +1328,26 @@ public partial class Form1 : Form
             MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
-    // tính năng cài đặt (tuần 5)
+    // tính năng cài đặt cho phép xem và chỉnh sửa ip và port
+
     private void btnCaiDat_Click(object sender, EventArgs e)
     {
-        MessageBox.Show("Tính năng cài đặt đang được phát triển.", "Thông báo",
-            MessageBoxButtons.OK, MessageBoxIcon.Information);
+        // Kiểm tra panel đã khởi tạo chưa
+        if (pnlConnect != null)
+        {
+            // Đảo trạng thái hiển thị
+            pnlConnect.Visible = !pnlConnect.Visible;
+
+            // Cập nhật trạng thái để dễ theo dõi
+            lblStatus.Text = pnlConnect.Visible
+                ? "⚙️ Đang hiển thị cấu hình Server (IP/Port)"
+                : "⚙️ Đã ẩn cấu hình Server";
+        }
+        else
+        {
+            // Nếu vì lý do nào đó panel chưa khởi tạo
+            MessageBox.Show("Panel cấu hình chưa được khởi tạo!");
+        }
     }
 
     //nút thoát
@@ -1515,4 +1369,3 @@ public partial class Form1 : Form
         base.OnFormClosing(e);
     }
 }
-
