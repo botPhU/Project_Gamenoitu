@@ -167,12 +167,12 @@ partial class Form1
         txtPort.Size = new Size(200, 30);
         pnlConnect.Controls.Add(txtPort);
         // Button Kết nối
-        btnConnect = new Button();
-        btnConnect.Name = "btnConnect";
-        btnConnect.Text = "Kết nối";
-        btnConnect.Location = new Point(210, 150);
-        btnConnect.Size = new Size(100, 30);
-        pnlConnect.Controls.Add(btnConnect);
+        //btnConnect = new Button();
+        //btnConnect.Name = "btnConnect";
+        //btnConnect.Text = "Kết nối";
+        //btnConnect.Location = new Point(210, 150);
+        //btnConnect.Size = new Size(100, 30);
+        //pnlConnect.Controls.Add(btnConnect);
         // Label Status
         lblStatus = new Label();
         lblStatus.Name = "lblStatus";
