@@ -17,12 +17,12 @@ namespace WordChain.Server
 
             var listener = new TcpListener(IPAddress.Any, 8888);
             listener.Start();
-            Console.WriteLine("✅ Server đang chạy trên cổng 8888. Chờ Client kết nối...");
+            Console.WriteLine("Server đang chạy trên cổng 8888. Chờ Client kết nối...");
 
             while (true)
             {
                 TcpClient client = await listener.AcceptTcpClientAsync();
-                Console.WriteLine("🔌 Có Client mới kết nối!");
+                Console.WriteLine("Có Client mới kết nối!");
                 _ = Task.Run(() => HandleClient(client));
             }
         }
