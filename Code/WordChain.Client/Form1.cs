@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
@@ -31,7 +33,7 @@ public partial class Form1 : Form
     private Label? _lblTrangThaiDangNhap;
     private Label? _lblTrangThaiDangKy;
     private Label? _lblTrangThaiChoiNhanh;
-    private Panel pnlConnect;
+    private Panel? pnlConnect;
 
     // Khai báo các đối tượng kết nối mạng TCP
     private TcpClient? _client;
@@ -39,16 +41,359 @@ public partial class Form1 : Form
     private StreamReader? _reader;
     private StreamWriter? _writer;
     private bool _isConnected = false;
+    private readonly List<PhongClient> _danhSachPhong = [];
+    private PhongClient? _phongHienTai;
+    private string _tenNguoiChoiHienTai = "PlayerOne";
+    private int _soThuTuPhong = 1;
+
+    private sealed class NguoiChoiPhong
+    {
+        public string TenHienThi { get; set; } = string.Empty;
+        public bool LaChuPhong { get; set; }
+
+        public override string ToString()
+        {
+            return LaChuPhong ? $"{TenHienThi} (chủ phòng)" : TenHienThi;
+        }
+    }
+
+    private sealed class PhongClient
+    {
+        public string MaPhong { get; set; } = string.Empty;
+        public string TenPhong { get; set; } = string.Empty;
+        public string MatKhau { get; set; } = string.Empty;
+        public string CheDo { get; set; } = "Thường";
+        public int SoGiayMoiLuot { get; set; } = 20;
+        public int SoNguoiToiDa { get; set; } = 4;
+        public bool LaPhongRieng { get; set; }
+        public string TuHienTai { get; set; } = "--";
+        public string TrangThai { get; set; } = "Đang chờ thêm người chơi";
+        public List<NguoiChoiPhong> NguoiChoi { get; } = [];
+        public List<string> TinNhan { get; } = [];
+
+        public override string ToString()
+        {
+            string quyenRieng = LaPhongRieng ? "Riêng tư" : "Công khai";
+            return $"{MaPhong} • {TenPhong} • {NguoiChoi.Count}/{SoNguoiToiDa} • {CheDo} • {quyenRieng}";
+        }
+    }
+
+    private sealed class HopThoaiTaoPhong : Form
+    {
+        private readonly TextBox _txtMaPhong;
+        private readonly TextBox _txtMatKhau;
+        private readonly TextBox _txtTenPhong;
+        private readonly ComboBox _cboCheDo;
+        private readonly NumericUpDown _numSoNguoi;
+        private readonly NumericUpDown _numSoGiay;
+        private readonly CheckBox _chkRiengTu;
+
+        public string MaPhong => _txtMaPhong.Text.Trim().ToUpperInvariant();
+        public string MatKhau => _txtMatKhau.Text.Trim();
+        public string TenPhong => _txtTenPhong.Text.Trim();
+        public string CheDo => _cboCheDo.SelectedItem?.ToString() ?? "Thường";
+        public int SoNguoiToiDa => (int)_numSoNguoi.Value;
+        public int SoGiayMoiLuot => (int)_numSoGiay.Value;
+        public bool LaPhongRieng => _chkRiengTu.Checked;
+
+        public HopThoaiTaoPhong(string tenMacDinh, string maPhongMacDinh)
+        {
+            Text = "Tạo phòng mới";
+            StartPosition = FormStartPosition.CenterParent;
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            ClientSize = new Size(420, 420);
+            MaximizeBox = false;
+            MinimizeBox = false;
+            BackColor = Color.FromArgb(249, 246, 255);
+
+            Label lblTieuDe = new()
+            {
+                Text = "Thiết lập phòng chơi",
+                Font = new Font("Bahnschrift SemiBold", 18F, FontStyle.Bold),
+                ForeColor = Color.FromArgb(55, 60, 103),
+                Location = new Point(24, 20),
+                AutoSize = true
+            };
+
+            Label lblTenPhong = new()
+            {
+                Text = "Tên phòng",
+                Location = new Point(28, 124),
+                AutoSize = true,
+                ForeColor = Color.FromArgb(82, 97, 126)
+            };
+
+            Label lblMaPhong = new()
+            {
+                Text = "Mã phòng",
+                Location = new Point(28, 72),
+                AutoSize = true,
+                ForeColor = Color.FromArgb(82, 97, 126)
+            };
+
+            _txtMaPhong = new TextBox
+            {
+                Location = new Point(28, 94),
+                Size = new Size(364, 31),
+                Font = new Font("Segoe UI", 11F),
+                CharacterCasing = CharacterCasing.Upper,
+                Text = maPhongMacDinh
+            };
+
+            _txtTenPhong = new TextBox
+            {
+                Location = new Point(28, 146),
+                Size = new Size(364, 31),
+                Font = new Font("Segoe UI", 11F),
+                Text = $"Phòng của {tenMacDinh}"
+            };
+
+            Label lblCheDo = new()
+            {
+                Text = "Chế độ",
+                Location = new Point(28, 190),
+                AutoSize = true,
+                ForeColor = Color.FromArgb(82, 97, 126)
+            };
+
+            _cboCheDo = new ComboBox
+            {
+                Location = new Point(28, 212),
+                Size = new Size(170, 31),
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Font = new Font("Segoe UI", 10.5F)
+            };
+            _cboCheDo.Items.AddRange(["Thường", "Nhanh", "Thư giãn"]);
+            _cboCheDo.SelectedIndex = 0;
+
+            Label lblSoNguoi = new()
+            {
+                Text = "Số người tối đa",
+                Location = new Point(222, 190),
+                AutoSize = true,
+                ForeColor = Color.FromArgb(82, 97, 126)
+            };
+
+            _numSoNguoi = new NumericUpDown
+            {
+                Location = new Point(222, 212),
+                Size = new Size(170, 31),
+                Minimum = 2,
+                Maximum = 8,
+                Value = 4,
+                Font = new Font("Segoe UI", 10.5F)
+            };
+
+            Label lblSoGiay = new()
+            {
+                Text = "Thời gian mỗi lượt",
+                Location = new Point(28, 256),
+                AutoSize = true,
+                ForeColor = Color.FromArgb(82, 97, 126)
+            };
+
+            _numSoGiay = new NumericUpDown
+            {
+                Location = new Point(28, 278),
+                Size = new Size(170, 31),
+                Minimum = 10,
+                Maximum = 60,
+                Value = 20,
+                Increment = 5,
+                Font = new Font("Segoe UI", 10.5F)
+            };
+
+            _chkRiengTu = new CheckBox
+            {
+                Text = "Phòng riêng tư",
+                Location = new Point(222, 281),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 10.5F),
+                ForeColor = Color.FromArgb(82, 97, 126)
+            };
+
+            Label lblMatKhau = new()
+            {
+                Text = "Mật khẩu phòng",
+                Location = new Point(28, 320),
+                AutoSize = true,
+                ForeColor = Color.FromArgb(82, 97, 126)
+            };
+
+            _txtMatKhau = new TextBox
+            {
+                Location = new Point(28, 342),
+                Size = new Size(364, 31),
+                Font = new Font("Segoe UI", 11F),
+                UseSystemPasswordChar = true,
+                Enabled = false
+            };
+
+            _chkRiengTu.CheckedChanged += (_, _) => _txtMatKhau.Enabled = _chkRiengTu.Checked;
+
+            Button btnHuy = new()
+            {
+                Text = "Hủy",
+                Location = new Point(208, 382),
+                Size = new Size(88, 34),
+                DialogResult = DialogResult.Cancel
+            };
+
+            Button btnDongY = new()
+            {
+                Text = "Tạo phòng",
+                Location = new Point(304, 382),
+                Size = new Size(88, 34),
+                BackColor = Color.FromArgb(110, 124, 212),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                DialogResult = DialogResult.OK
+            };
+            btnDongY.FlatAppearance.BorderSize = 0;
+            btnDongY.Click += (_, _) =>
+            {
+                if (string.IsNullOrWhiteSpace(MaPhong) || string.IsNullOrWhiteSpace(TenPhong))
+                {
+                    MessageBox.Show("Bạn hãy nhập tên phòng trước khi tiếp tục.", "Thiếu thông tin",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    DialogResult = DialogResult.None;
+                }
+
+                if (DialogResult != DialogResult.None && LaPhongRieng && string.IsNullOrWhiteSpace(MatKhau))
+                {
+                    MessageBox.Show("PhÃ²ng riÃªng tÆ° cáº§n cÃ³ máº­t kháº©u Ä‘á»ƒ báº£o vá»‡.", "Thiáº¿u máº­t kháº©u",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    DialogResult = DialogResult.None;
+                }
+            };
+
+            AcceptButton = btnDongY;
+            CancelButton = btnHuy;
+
+            Controls.AddRange([lblTieuDe, lblMaPhong, _txtMaPhong, lblTenPhong, _txtTenPhong, lblCheDo, _cboCheDo,
+                lblSoNguoi, _numSoNguoi, lblSoGiay, _numSoGiay, _chkRiengTu, lblMatKhau, _txtMatKhau, btnHuy, btnDongY]);
+        }
+    }
+
+    private sealed class HopThoaiNhapMaPhong : Form
+    {
+        private readonly TextBox _txtMaPhong;
+        private readonly TextBox _txtMatKhau;
+
+        public string MaPhong => _txtMaPhong.Text.Trim().ToUpperInvariant();
+        public string MatKhau => _txtMatKhau.Text.Trim();
+
+        public HopThoaiNhapMaPhong(string? maPhongMacDinh = null, bool hienMatKhau = true)
+        {
+            Text = "Tham gia phòng";
+            StartPosition = FormStartPosition.CenterParent;
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            ClientSize = new Size(360, 240);
+            MaximizeBox = false;
+            MinimizeBox = false;
+            BackColor = Color.FromArgb(249, 246, 255);
+
+            Label lblTieuDe = new()
+            {
+                Text = "Nhập mã phòng",
+                Font = new Font("Bahnschrift SemiBold", 16F, FontStyle.Bold),
+                ForeColor = Color.FromArgb(55, 60, 103),
+                Location = new Point(24, 20),
+                AutoSize = true
+            };
+
+            Label lblHuongDan = new()
+            {
+                Text = "Bạn có thể dán mã phòng bạn bè đã gửi cho bạn.",
+                Location = new Point(24, 58),
+                Size = new Size(312, 32),
+                ForeColor = Color.FromArgb(82, 97, 126)
+            };
+
+            _txtMaPhong = new TextBox
+            {
+                Location = new Point(24, 96),
+                Size = new Size(312, 31),
+                CharacterCasing = CharacterCasing.Upper,
+                Font = new Font("Segoe UI", 11F),
+                Text = maPhongMacDinh ?? string.Empty
+            };
+
+            Label lblMatKhau = new()
+            {
+                Text = "Mật khẩu phòng",
+                Location = new Point(24, 136),
+                AutoSize = true,
+                ForeColor = Color.FromArgb(82, 97, 126)
+            };
+
+            _txtMatKhau = new TextBox
+            {
+                Location = new Point(24, 158),
+                Size = new Size(312, 31),
+                Font = new Font("Segoe UI", 11F),
+                UseSystemPasswordChar = true,
+                Enabled = hienMatKhau
+            };
+
+            Button btnDongY = new()
+            {
+                Text = "Vào phòng",
+                Location = new Point(244, 198),
+                Size = new Size(92, 30),
+                BackColor = Color.FromArgb(110, 124, 212),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                DialogResult = DialogResult.OK
+            };
+            btnDongY.FlatAppearance.BorderSize = 0;
+            btnDongY.Click += (_, _) =>
+            {
+                if (string.IsNullOrWhiteSpace(MaPhong))
+                {
+                    MessageBox.Show("Bạn hãy nhập mã phòng trước khi tiếp tục.", "Thiếu thông tin",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    DialogResult = DialogResult.None;
+                }
+            };
+
+            Controls.AddRange([lblTieuDe, lblHuongDan, _txtMaPhong, lblMatKhau, _txtMatKhau, btnDongY]);
+            AcceptButton = btnDongY;
+        }
+    }
 
 
 
     public Form1()
     {
         InitializeComponent();
+        CauHinhCheDoChoiNhanh();
         DoubleBuffered = true;
         ApDungThietKeTaste();
         KhoiTaoTrangThaiBanDau();
-        HienManHinh(tabDangNhap);
+        KhoiTaoTuongTacClient();
+        HienManHinh(tabChoiNhanh);
+    }
+
+    // Giữ đúng một lối vào là chơi nhanh để giao diện đầu tiên gọn và dễ hiểu hơn.
+    private void CauHinhCheDoChoiNhanh()
+    {
+        if (tabMain.TabPages.Contains(tabDangNhap))
+        {
+            tabMain.TabPages.Remove(tabDangNhap);
+        }
+
+        if (tabMain.TabPages.Contains(tabDangKy))
+        {
+            tabMain.TabPages.Remove(tabDangKy);
+        }
+
+        btnTabDangNhap.Visible = false;
+        btnTabDangKy.Visible = false;
+        lnkDangKyNgay.Visible = false;
+        lblChuaCoTaiKhoan.Visible = false;
+        lnkDangNhapNgay.Visible = false;
+        lblDaCoTaiKhoan.Visible = false;
     }
 
 
@@ -77,13 +422,39 @@ public partial class Form1 : Form
             this.Invoke(new Action(() =>
             {
                 lblStatus.Text = "⚠️ Mất kết nối với Server.";
-                btnConnect.Enabled = true;
+                if (btnConnect is not null)
+                {
+                    btnConnect.Enabled = true;
+                }
                 _isConnected = false;
             }));
         }
     }
 
     // Gom toàn bộ phần làm đẹp vào một luồng duy nhất để dễ chỉnh theme.
+    private void KhoiTaoTuongTacClient()
+    {
+        btnTaoPhong.Click -= btnTaoPhong_Click;
+        btnThamGiaPhong.Click -= btnThamGiaPhong_Click;
+        btnGuiTu.Click -= btnGuiTu_Click;
+        btnGuiChat.Click -= btnGuiChat_Click;
+        btnRoiPhong.Click -= btnRoiPhong_Click;
+
+        btnTaoPhong.Click += (_, _) => MoQuyTrinhTaoPhong();
+        btnThamGiaPhong.Click += (_, _) => MoQuyTrinhThamGiaPhong();
+        btnGuiTu.Click += (_, _) => GuiTuNoiBo();
+        btnGuiChat.Click += (_, _) => GuiChatNoiBo();
+        btnRoiPhong.Click += (_, _) => RoiPhongNoiBo();
+        btnMenuSanhCho.Click += (_, _) => MoSanhCho();
+        btnMenuTaoPhong.Click += (_, _) => MoQuyTrinhTaoPhong();
+        btnMenuThamGiaPhong.Click += (_, _) => MoQuyTrinhThamGiaPhong();
+        lstPhongNoiBat.DoubleClick += (_, _) => ThamGiaPhongDangChon();
+        txtNhapTu.KeyDown += txtNhapTu_KeyDown;
+        txtTinNhan.KeyDown += txtTinNhan_KeyDown;
+        CapNhatTrangThaiMenuSanhCho(btnMenuSanhCho);
+        LamMoiDanhSachPhong();
+    }
+
     private void ApDungThietKeTaste()
     {
         TaoNhanTrangThai();
@@ -159,9 +530,9 @@ public partial class Form1 : Form
         ApDungNutMenu(btnBangXepHang, false);
         ApDungNutMenu(btnCaiDat, false);
 
-        ApDungNutChuyenTab(btnTabDangNhap, true);
+        ApDungNutChuyenTab(btnTabDangNhap, false);
         ApDungNutChuyenTab(btnTabDangKy, false);
-        ApDungNutChuyenTab(btnTabChoiNhanh, false);
+        ApDungNutChuyenTab(btnTabChoiNhanh, true);
 
         ApDungHopNhap(txtDangNhapTenDangNhap);
         ApDungHopNhap(txtDangNhapMatKhau);
@@ -192,8 +563,14 @@ public partial class Form1 : Form
         lblChoiNhanhMoTa.AutoSize = false;
         lblChoiNhanhMoTa.Font = new Font("Segoe UI", 11F);
         lblChoiNhanhMoTa.ForeColor = _mauPhu;
-        lblChoiNhanhMoTa.Text = "Nhập tên hiển thị, chọn màu bạn thích và bắt đầu một ván vui vẻ.";
+        lblChoiNhanhMoTa.Text = "Nhập tên hiển thị, chọn màu bạn thích và vào sảnh chờ ngay. Không cần tạo tài khoản để bắt đầu.";
         lblChoiNhanhMoTa.TextAlign = ContentAlignment.TopCenter;
+        btnTabDangNhap.Visible = false;
+        btnTabDangKy.Visible = false;
+        lnkDangKyNgay.Visible = false;
+        lblChuaCoTaiKhoan.Visible = false;
+        lnkDangNhapNgay.Visible = false;
+        lblDaCoTaiKhoan.Visible = false;
 
         lblTieuDeSanhCho.Font = new Font("Bahnschrift SemiBold", 28F, FontStyle.Bold);
         lblTieuDeSanhCho.ForeColor = _mauChu;
@@ -257,8 +634,8 @@ public partial class Form1 : Form
         cardDangNhap.Size = new Size(470, 382);
         cardDangKy.Location = new Point(806, 156);
         cardDangKy.Size = new Size(470, 404);
-        cardChoiNhanh.Location = new Point(806, 146);
-        cardChoiNhanh.Size = new Size(470, 470);
+        cardChoiNhanh.Location = new Point(820, 170);
+        cardChoiNhanh.Size = new Size(454, 406);
 
         btnTabDangNhap.Text = "Đăng nhập";
         btnTabDangKy.Text = "Đăng ký";
@@ -309,31 +686,32 @@ public partial class Form1 : Form
         lblDaCoTaiKhoan.Location = new Point(108, 370);
         lnkDangNhapNgay.Location = new Point(233, 370);
 
-        lblChoiNhanhTieuDe.Location = new Point(147, 34);
-        lblChoiNhanhTieuDe.Size = new Size(176, 42);
+        lblChoiNhanhTieuDe.Location = new Point(126, 32);
+        lblChoiNhanhTieuDe.Size = new Size(202, 42);
         lblChoiNhanhTieuDe.TextAlign = ContentAlignment.MiddleCenter;
-        lblChoiNhanhMoTa.Location = new Point(70, 80);
-        lblChoiNhanhMoTa.Size = new Size(330, 46);
-        lblAvatarMau.Location = new Point(167, 126);
-        txtChoiNhanhTenNguoiChoi.Location = new Point(56, 238);
-        txtChoiNhanhTenNguoiChoi.Size = new Size(358, 34);
-        avatar1.Location = new Point(84, 300);
-        avatar2.Location = new Point(151, 300);
-        avatar3.Location = new Point(218, 300);
-        avatar4.Location = new Point(285, 300);
-        avatar5.Location = new Point(352, 300);
-        btnBatDauChoiNhanh.Location = new Point(56, 364);
-        btnBatDauChoiNhanh.Size = new Size(358, 48);
+        lblChoiNhanhMoTa.Location = new Point(52, 82);
+        lblChoiNhanhMoTa.Size = new Size(350, 52);
+        lblAvatarMau.Location = new Point(160, 136);
+        txtChoiNhanhTenNguoiChoi.Location = new Point(52, 228);
+        txtChoiNhanhTenNguoiChoi.Size = new Size(350, 34);
+        avatar1.Location = new Point(80, 288);
+        avatar2.Location = new Point(146, 288);
+        avatar3.Location = new Point(212, 288);
+        avatar4.Location = new Point(278, 288);
+        avatar5.Location = new Point(344, 288);
+        btnBatDauChoiNhanh.Location = new Point(52, 340);
+        btnBatDauChoiNhanh.Size = new Size(350, 48);
         if (_lblTrangThaiChoiNhanh is not null)
         {
-            _lblTrangThaiChoiNhanh.Location = new Point(56, 420);
-            _lblTrangThaiChoiNhanh.Size = new Size(358, 38);
+            _lblTrangThaiChoiNhanh.Location = new Point(52, 390);
+            _lblTrangThaiChoiNhanh.Size = new Size(350, 36);
         }
-        lblChuaCoTaiKhoan.Location = new Point(114, 435);
-        lnkDangKyNgay.Location = new Point(261, 435);
 
-        pnlSanhChoMenu.Width = 214;
-        pnlSanhChoMenu.Padding = new Padding(16, 20, 16, 20);
+        pnlSanhChoMenu.Visible = false;
+        pnlSanhChoMenu.Width = 0;
+        pnlSanhChoMenu.Padding = new Padding(0);
+        pnlSanhChoNoiDung.Dock = DockStyle.Fill;
+        pnlSanhChoNoiDung.Location = new Point(0, 0);
         lblAvatarSanhCho.Location = new Point(18, 34);
         lblTenNguoiChoiSanh.Location = new Point(18, 98);
         lblTrangThaiOnline.Location = new Point(20, 130);
@@ -346,16 +724,16 @@ public partial class Form1 : Form
         btnThoat.Location = new Point(18, 742);
         btnThoat.Size = new Size(176, 38);
 
-        pnlSanhChoNoiDung.Padding = new Padding(40, 34, 40, 34);
-        cardTaoPhong.Location = new Point(44, 164);
-        cardTaoPhong.Size = new Size(486, 224);
-        cardThamGiaPhong.Location = new Point(558, 164);
-        cardThamGiaPhong.Size = new Size(486, 224);
-        lblPhongNoiBat.Location = new Point(42, 436);
-        lstPhongNoiBat.Location = new Point(48, 496);
-        lstPhongNoiBat.Size = new Size(1032, 138);
-        lblTrangThaiPhong.Location = new Point(48, 500);
-        lblMoTaSanhCho.Size = new Size(520, 48);
+        pnlSanhChoNoiDung.Padding = new Padding(72, 34, 72, 34);
+        cardTaoPhong.Location = new Point(74, 164);
+        cardTaoPhong.Size = new Size(540, 224);
+        cardThamGiaPhong.Location = new Point(680, 164);
+        cardThamGiaPhong.Size = new Size(540, 224);
+        lblPhongNoiBat.Location = new Point(72, 436);
+        lstPhongNoiBat.Location = new Point(78, 496);
+        lstPhongNoiBat.Size = new Size(1142, 184);
+        lblTrangThaiPhong.Location = new Point(78, 500);
+        lblMoTaSanhCho.Size = new Size(620, 48);
 
         pnlPhongTop.Height = 84;
         cardLichSuVaNguoiChoi.Location = new Point(28, 30);
@@ -1083,6 +1461,11 @@ public partial class Form1 : Form
     // Chuyển tab và đồng thời cập nhật trạng thái nút để người dùng dễ nhận biết màn hiện tại.
     private void HienManHinh(TabPage tabPage)
     {
+        if (tabPage == tabDangNhap || tabPage == tabDangKy)
+        {
+            tabPage = tabChoiNhanh;
+        }
+
         tabMain.SelectedTab = tabPage;
         ApDungNutChuyenTab(btnTabDangNhap, tabPage == tabDangNhap);
         ApDungNutChuyenTab(btnTabDangKy, tabPage == tabDangKy);
@@ -1092,13 +1475,373 @@ public partial class Form1 : Form
     // Cập nhật tên hiển thị ở những vị trí chính sau khi người chơi nhập xong.
     private void CapNhatTenNguoiChoi(string tenMacDinh = "PlayerOne")
     {
-        string tenNguoiChoi = string.IsNullOrWhiteSpace(txtDangNhapTenDangNhap.Text)
+        string tenNguoiChoi = string.IsNullOrWhiteSpace(txtChoiNhanhTenNguoiChoi.Text)
             ? tenMacDinh
-            : txtDangNhapTenDangNhap.Text.Trim();
+            : txtChoiNhanhTenNguoiChoi.Text.Trim();
 
+        _tenNguoiChoiHienTai = tenNguoiChoi;
         lblTenNguoiChoiSanh.Text = tenNguoiChoi;
         lblLuotChoi.Text = $"Lượt của: {tenNguoiChoi}";
         lblThongTinPhong.Text = "Bạn chưa vào phòng nào";
+    }
+
+    // Cập nhật trạng thái menu trái để người dùng biết mình đang thao tác ở nhóm nào.
+    private void CapNhatTrangThaiMenuSanhCho(Button nutDangChon)
+    {
+        ApDungNutMenu(btnMenuSanhCho, nutDangChon == btnMenuSanhCho);
+        ApDungNutMenu(btnMenuTaoPhong, nutDangChon == btnMenuTaoPhong);
+        ApDungNutMenu(btnMenuThamGiaPhong, nutDangChon == btnMenuThamGiaPhong);
+    }
+
+    private void MoSanhCho()
+    {
+        CapNhatTrangThaiMenuSanhCho(btnMenuSanhCho);
+        HienManHinh(tabSanhCho);
+        LamMoiDanhSachPhong();
+    }
+
+    // Tạo phòng ngay trên client để luồng giao diện có thể chạy và test độc lập.
+    private void MoQuyTrinhTaoPhong()
+    {
+        CapNhatTrangThaiMenuSanhCho(btnMenuTaoPhong);
+
+        using HopThoaiTaoPhong hopThoai = new(_tenNguoiChoiHienTai, XemTruocMaPhongTiepTheo());
+        if (hopThoai.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        PhongClient phong = new()
+        {
+            MaPhong = hopThoai.MaPhong,
+            MatKhau = hopThoai.MatKhau,
+            TenPhong = hopThoai.TenPhong,
+            CheDo = hopThoai.CheDo,
+            SoNguoiToiDa = hopThoai.SoNguoiToiDa,
+            SoGiayMoiLuot = hopThoai.SoGiayMoiLuot,
+            LaPhongRieng = hopThoai.LaPhongRieng
+        };
+
+        if (_danhSachPhong.Any(item => item.MaPhong.Equals(phong.MaPhong, StringComparison.OrdinalIgnoreCase)))
+        {
+            lblTrangThaiPhong.Text = "Mã phòng này đã tồn tại. Bạn hãy chọn mã khác nhé.";
+            lblTrangThaiPhong.Visible = true;
+            return;
+        }
+
+        _soThuTuPhong++;
+
+        GanNguoiChoiVaoPhong(phong, _tenNguoiChoiHienTai, true);
+        ThemTinNhanHeThong(phong, $"Phòng {phong.MaPhong} vừa được tạo.");
+
+        _danhSachPhong.Insert(0, phong);
+        LamMoiDanhSachPhong(phong.MaPhong);
+        VaoPhong(phong, true);
+    }
+
+    private void MoQuyTrinhThamGiaPhong()
+    {
+        CapNhatTrangThaiMenuSanhCho(btnMenuThamGiaPhong);
+        ThamGiaPhongDangChon();
+    }
+
+    private void ThamGiaPhongDangChon()
+    {
+        if (lstPhongNoiBat.SelectedItem is PhongClient phongDaChon)
+        {
+            using HopThoaiNhapMaPhong hopThoaiDaChon = new(phongDaChon.MaPhong, phongDaChon.LaPhongRieng);
+            if (hopThoaiDaChon.ShowDialog(this) != DialogResult.OK)
+            {
+                return;
+            }
+
+            if (phongDaChon.LaPhongRieng &&
+                !string.Equals(phongDaChon.MatKhau, hopThoaiDaChon.MatKhau, StringComparison.Ordinal))
+            {
+                lblTrangThaiPhong.Text = "Mật khẩu phòng chưa đúng. Bạn hãy thử lại nhé.";
+                lblTrangThaiPhong.Visible = true;
+                return;
+            }
+
+            VaoPhong(phongDaChon, false);
+            return;
+        }
+
+        if (_danhSachPhong.Count == 0)
+        {
+            lblTrangThaiPhong.Text = "Bạn chưa có phòng nào để tham gia. Hãy tạo phòng trước nhé.";
+            lblTrangThaiPhong.Visible = true;
+            return;
+        }
+
+        using HopThoaiNhapMaPhong hopThoai = new(null, true);
+        if (hopThoai.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        PhongClient? phongTheoMa = _danhSachPhong.FirstOrDefault(
+            phong => phong.MaPhong.Equals(hopThoai.MaPhong, StringComparison.OrdinalIgnoreCase));
+
+        if (phongTheoMa is null)
+        {
+            lblTrangThaiPhong.Text = "Mã phòng này chưa có trong danh sách hiện tại.";
+            lblTrangThaiPhong.Visible = true;
+            return;
+        }
+
+        if (phongTheoMa.LaPhongRieng &&
+            !string.Equals(phongTheoMa.MatKhau, hopThoai.MatKhau, StringComparison.Ordinal))
+        {
+            lblTrangThaiPhong.Text = "Mật khẩu phòng chưa đúng. Bạn hãy thử lại nhé.";
+            lblTrangThaiPhong.Visible = true;
+            return;
+        }
+
+        VaoPhong(phongTheoMa, false);
+    }
+
+    private void VaoPhong(PhongClient phong, bool laPhongMoi)
+    {
+        if (phong.NguoiChoi.Count >= phong.SoNguoiToiDa &&
+            phong.NguoiChoi.All(nguoiChoi => !nguoiChoi.TenHienThi.Equals(_tenNguoiChoiHienTai, StringComparison.OrdinalIgnoreCase)))
+        {
+            lblTrangThaiPhong.Text = "Phòng này đã đủ người. Bạn hãy chọn phòng khác nhé.";
+            lblTrangThaiPhong.Visible = true;
+            return;
+        }
+
+        GanNguoiChoiVaoPhong(phong, _tenNguoiChoiHienTai, laPhongMoi && phong.NguoiChoi.Count == 1);
+        _phongHienTai = phong;
+
+        if (!laPhongMoi)
+        {
+            ThemTinNhanHeThong(phong, $"{_tenNguoiChoiHienTai} vừa vào phòng.");
+        }
+
+        CapNhatGiaoDienPhongHienTai();
+        HienManHinh(tabPhongChoi);
+    }
+
+    private void CapNhatGiaoDienPhongHienTai()
+    {
+        if (_phongHienTai is null)
+        {
+            DatLaiTrangThaiPhongHienTai();
+            return;
+        }
+
+        lblThongTinPhong.Text = $"{_phongHienTai.TenPhong} • {_phongHienTai.MaPhong}";
+        lblLuotChoi.Text = $"Lượt của: {_tenNguoiChoiHienTai}";
+        lblBoDem.Text = $"{_phongHienTai.SoGiayMoiLuot} GIÂY";
+        lblTuHienTai.Text = _phongHienTai.TuHienTai;
+        lblHuongDanNoiTu.Text = _phongHienTai.TrangThai;
+        lblThongTinChiTiet.Text =
+            $"THÔNG TIN TRẬN ĐẤU{Environment.NewLine}" +
+            $"Chế độ: {_phongHienTai.CheDo} | Thời gian: {_phongHienTai.SoGiayMoiLuot} giây/lượt{Environment.NewLine}" +
+            $"Ngôn ngữ: Tiếng Việt | Số người tối đa: {_phongHienTai.SoNguoiToiDa}";
+
+        lstNguoiChoi.Items.Clear();
+        foreach (NguoiChoiPhong nguoiChoi in _phongHienTai.NguoiChoi)
+        {
+            lstNguoiChoi.Items.Add(nguoiChoi);
+        }
+
+        lstChatTrongPhong.Items.Clear();
+        foreach (string tinNhan in _phongHienTai.TinNhan)
+        {
+            lstChatTrongPhong.Items.Add(tinNhan);
+        }
+
+        if (lstChatTrongPhong.Items.Count > 0)
+        {
+            lstChatTrongPhong.TopIndex = lstChatTrongPhong.Items.Count - 1;
+        }
+
+        LamMoiDanhSachPhong(_phongHienTai.MaPhong);
+        CapNhatTrangThaiDanhSach();
+    }
+
+    private void DatLaiTrangThaiPhongHienTai()
+    {
+        lblThongTinPhong.Text = "Bạn chưa vào phòng nào";
+        lblLuotChoi.Text = $"Lượt của: {_tenNguoiChoiHienTai}";
+        lblBoDem.Text = "15 GIÂY";
+        lblTuHienTai.Text = "--";
+        lblHuongDanNoiTu.Text = "Khi trò chơi bắt đầu, từ đầu tiên sẽ xuất hiện tại đây.";
+        lblThongTinChiTiet.Text =
+            $"THÔNG TIN TRẬN ĐẤU{Environment.NewLine}" +
+            "Chế độ: Chưa xác định | Thời gian: Chưa xác định" + Environment.NewLine +
+            "Ngôn ngữ: Tiếng Việt | Số người tối đa: Chưa xác định";
+        lstNguoiChoi.Items.Clear();
+        lstChatTrongPhong.Items.Clear();
+        CapNhatTrangThaiDanhSach();
+    }
+
+    private void LamMoiDanhSachPhong(string? maPhongDangChon = null)
+    {
+        lstPhongNoiBat.BeginUpdate();
+        lstPhongNoiBat.Items.Clear();
+
+        foreach (PhongClient phong in _danhSachPhong
+                     .OrderByDescending(item => item.NguoiChoi.Count)
+                     .ThenBy(item => item.TenPhong))
+        {
+            lstPhongNoiBat.Items.Add(phong);
+        }
+
+        if (!string.IsNullOrWhiteSpace(maPhongDangChon))
+        {
+            for (int i = 0; i < lstPhongNoiBat.Items.Count; i++)
+            {
+                if (lstPhongNoiBat.Items[i] is PhongClient phong &&
+                    phong.MaPhong.Equals(maPhongDangChon, StringComparison.OrdinalIgnoreCase))
+                {
+                    lstPhongNoiBat.SelectedIndex = i;
+                    break;
+                }
+            }
+        }
+
+        lstPhongNoiBat.EndUpdate();
+        CapNhatTrangThaiDanhSach();
+    }
+
+    private void GanNguoiChoiVaoPhong(PhongClient phong, string tenNguoiChoi, bool laChuPhong)
+    {
+        NguoiChoiPhong? nguoiChoiTonTai = phong.NguoiChoi.FirstOrDefault(
+            item => item.TenHienThi.Equals(tenNguoiChoi, StringComparison.OrdinalIgnoreCase));
+
+        if (nguoiChoiTonTai is null)
+        {
+            phong.NguoiChoi.Add(new NguoiChoiPhong
+            {
+                TenHienThi = tenNguoiChoi,
+                LaChuPhong = laChuPhong || phong.NguoiChoi.Count == 0
+            });
+            return;
+        }
+
+        if (laChuPhong)
+        {
+            nguoiChoiTonTai.LaChuPhong = true;
+        }
+    }
+
+    private void BoNguoiChoiKhoiPhong(PhongClient phong, string tenNguoiChoi)
+    {
+        NguoiChoiPhong? nguoiChoiCanXoa = phong.NguoiChoi.FirstOrDefault(
+            item => item.TenHienThi.Equals(tenNguoiChoi, StringComparison.OrdinalIgnoreCase));
+
+        if (nguoiChoiCanXoa is null)
+        {
+            return;
+        }
+
+        bool laChuPhong = nguoiChoiCanXoa.LaChuPhong;
+        phong.NguoiChoi.Remove(nguoiChoiCanXoa);
+
+        if (laChuPhong && phong.NguoiChoi.Count > 0)
+        {
+            phong.NguoiChoi[0].LaChuPhong = true;
+        }
+    }
+
+    private void ThemTinNhanHeThong(PhongClient phong, string noiDung)
+    {
+        phong.TinNhan.Add($"Hệ thống: {noiDung}");
+    }
+
+    private string XemTruocMaPhongTiepTheo()
+    {
+        return $"NT{_soThuTuPhong:000}";
+    }
+
+    private void txtNhapTu_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.KeyCode != Keys.Enter)
+        {
+            return;
+        }
+
+        e.SuppressKeyPress = true;
+        btnGuiTu.PerformClick();
+    }
+
+    private void txtTinNhan_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.KeyCode != Keys.Enter)
+        {
+            return;
+        }
+
+        e.SuppressKeyPress = true;
+        btnGuiChat.PerformClick();
+    }
+
+    private void GuiTuNoiBo()
+    {
+        if (_phongHienTai is null)
+        {
+            lblHuongDanNoiTu.Text = "Bạn hãy vào một phòng trước khi gửi từ nhé.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(txtNhapTu.Text))
+        {
+            lblHuongDanNoiTu.Text = "Bạn hãy nhập một từ hợp lý để tiếp tục lượt chơi nhé.";
+            return;
+        }
+
+        _phongHienTai.TuHienTai = txtNhapTu.Text.Trim();
+        _phongHienTai.TrangThai = "Từ của bạn đã được ghi nhận. Cùng chờ lượt tiếp theo nào.";
+        ThemTinNhanHeThong(_phongHienTai, $"{_tenNguoiChoiHienTai} vừa nối từ: {_phongHienTai.TuHienTai}");
+        CapNhatGiaoDienPhongHienTai();
+        txtNhapTu.Clear();
+    }
+
+    private void GuiChatNoiBo()
+    {
+        if (_phongHienTai is null)
+        {
+            lblTrangThaiChat.Text = "Bạn hãy vào phòng trước khi trò chuyện nhé.";
+            lblTrangThaiChat.Visible = true;
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(txtTinNhan.Text))
+        {
+            lblTrangThaiChat.Text = "Bạn hãy viết một tin nhắn ngắn trước khi gửi nhé.";
+            lblTrangThaiChat.Visible = true;
+            return;
+        }
+
+        _phongHienTai.TinNhan.Add($"{_tenNguoiChoiHienTai}: {txtTinNhan.Text.Trim()}");
+        lblTrangThaiChat.Text = "Tin nhắn của bạn đã xuất hiện trong cuộc trò chuyện.";
+        CapNhatGiaoDienPhongHienTai();
+        txtTinNhan.Clear();
+    }
+
+    private void RoiPhongNoiBo()
+    {
+        if (_phongHienTai is not null)
+        {
+            BoNguoiChoiKhoiPhong(_phongHienTai, _tenNguoiChoiHienTai);
+
+            if (_phongHienTai.NguoiChoi.Count == 0)
+            {
+                _danhSachPhong.Remove(_phongHienTai);
+            }
+            else
+            {
+                ThemTinNhanHeThong(_phongHienTai, $"{_tenNguoiChoiHienTai} vừa rời phòng.");
+            }
+        }
+
+        _phongHienTai = null;
+        DatLaiTrangThaiPhongHienTai();
+        LamMoiDanhSachPhong();
+        MoSanhCho();
     }
 
     private void btnTabDangNhap_Click(object sender, EventArgs e)
@@ -1151,9 +1894,9 @@ public partial class Form1 : Form
             _client = new TcpClient();
             await _client.ConnectAsync(ip, port);
 
-            var stream = _client.GetStream();
-            _reader = new StreamReader(stream, System.Text.Encoding.UTF8);
-            _writer = new StreamWriter(stream, System.Text.Encoding.UTF8) { AutoFlush = true };
+            _stream = _client.GetStream();
+            _reader = new StreamReader(_stream, System.Text.Encoding.UTF8);
+            _writer = new StreamWriter(_stream, System.Text.Encoding.UTF8) { AutoFlush = true };
             _isConnected = true;
 
             var packet = new Packet { Type = PacketType.Connect, Payload = nickname };
@@ -1217,9 +1960,6 @@ public partial class Form1 : Form
         HienThiTrangThai(_lblTrangThaiChoiNhanh,
             "Đã lưu tên hiển thị. Chuẩn bị vào chơi thôi.", _mauThanhCong);
 
-        // Gán tên này vào ô đăng nhập để đồng bộ
-        txtDangNhapTenDangNhap.Text = quickName;
-
         // Cập nhật tên người chơi trong giao diện
         CapNhatTenNguoiChoi(quickName);
 
@@ -1232,7 +1972,7 @@ public partial class Form1 : Form
     }
 
     // Mô phỏng luồng tạo phòng để người dùng nhìn thấy trạng thái rõ ràng hơn.
-    private void btnTaoPhong_Click(object sender, EventArgs e)
+    private void btnTaoPhong_Click(object? sender, EventArgs e)
     {
         lblThongTinPhong.Text = "Phòng mới của bạn đã sẵn sàng";
         lblLuotChoi.Text = $"Lượt của: {lblTenNguoiChoiSanh.Text}";
@@ -1245,7 +1985,7 @@ public partial class Form1 : Form
         HienManHinh(tabPhongChoi);
     }
 
-    private void btnThamGiaPhong_Click(object sender, EventArgs e)
+    private void btnThamGiaPhong_Click(object? sender, EventArgs e)
     {
         if (lstPhongNoiBat.SelectedItem is null)
         {
@@ -1260,7 +2000,7 @@ public partial class Form1 : Form
         HienManHinh(tabPhongChoi);
     }
 
-    private void btnGuiTu_Click(object sender, EventArgs e)
+    private void btnGuiTu_Click(object? sender, EventArgs e)
     {
         if (string.IsNullOrWhiteSpace(txtNhapTu.Text))
         {
@@ -1273,7 +2013,7 @@ public partial class Form1 : Form
         txtNhapTu.Clear();
     }
 
-    private void btnGuiChat_Click(object sender, EventArgs e)
+    private void btnGuiChat_Click(object? sender, EventArgs e)
     {
         if (string.IsNullOrWhiteSpace(txtTinNhan.Text))
         {
@@ -1289,7 +2029,7 @@ public partial class Form1 : Form
         txtTinNhan.Clear();
     }
 
-    private void btnRoiPhong_Click(object sender, EventArgs e)
+    private void btnRoiPhong_Click(object? sender, EventArgs e)
     {
         lstNguoiChoi.Items.Clear();
         lstChatTrongPhong.Items.Clear();
