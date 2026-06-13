@@ -294,6 +294,8 @@ namespace WordChain.Server
             await BroadcastRoomUpdate(roomCode);
         }
 
+        static ConcurrentDictionary<string, HashSet<string>> _usedWords = new();
+
         static async Task HandleSubmitWord(string clientId, string payload, StreamWriter writer)
         {
             if (!_clientRooms.TryGetValue(clientId, out string? roomCode))
@@ -302,11 +304,53 @@ namespace WordChain.Server
             var parts = payload.Split('|');
             string newWord = parts.Length > 1 ? parts[1] : parts[0];
 
+            newWord = newWord.Trim();
+
+            if (string.IsNullOrWhiteSpace(newWord))
+            {
+                await writer.WriteLineAsync(new Packet
+                {
+                    Type = PacketType.WordResult,
+                    Payload = "FAIL|Từ rỗng"
+                }.ToJson());
+
+                return;
+            }
+
+            if (newWord.Length > 30)
+            {
+                await writer.WriteLineAsync(new Packet
+                {
+                    Type = PacketType.WordResult,
+                    Payload = "FAIL|Từ quá dài"
+                }.ToJson());
+
+                return;
+            }
+
+            if (IsWordUsed(roomCode, newWord))
+            {
+                await writer.WriteLineAsync(new Packet
+                {
+                    Type = PacketType.WordResult,
+                    Payload = $"FAIL|{newWord} đã được dùng"
+                }.ToJson());
+
+                return;
+            }
+
             string lastWord = _lastWords.GetValueOrDefault(roomCode, "");
+
             bool valid = IsValidWord(lastWord, newWord);
 
             if (valid)
+            {
                 _lastWords[roomCode] = newWord;
+
+                AddUsedWord(roomCode, newWord);
+
+                Console.WriteLine($"✅ Từ hợp lệ: {newWord}");
+            }
 
             await writer.WriteLineAsync(new Packet
             {
@@ -370,6 +414,26 @@ namespace WordChain.Server
             string lastSyllable = lastWord.Trim().Split(' ').Last().ToLower();
             string firstSyllable = newWord.Trim().Split(' ').First().ToLower();
             return lastSyllable == firstSyllable;
+        }
+
+        static bool IsWordUsed(string roomCode, string word)
+        {
+            word = word.Trim().ToLower();
+
+            if (!_usedWords.ContainsKey(roomCode))
+                return false;
+
+            return _usedWords[roomCode].Contains(word);
+        }
+
+        static void AddUsedWord(string roomCode, string word)
+        {
+            word = word.Trim().ToLower();
+
+            if (!_usedWords.ContainsKey(roomCode))
+                _usedWords[roomCode] = new HashSet<string>();
+
+            _usedWords[roomCode].Add(word);
         }
     }
 }
