@@ -18,7 +18,11 @@ namespace WordChain.Common
         JoinRoom,        // Client yêu cầu vào phòng
         JoinRoomOK,      // Vào phòng thành công
         JoinRoomFail,    // Vào phòng thất bại
-        RoomList,        // Danh sách phòng
+        QuickJoin, 	 // vào phòng nhanh
+	QuickJoinOK, 	 // vào phòng nhanh thành công
+	QuickJoinFail,	 // vào phòng nhanh thất bại
+        LeaveRoom,
+        RoomList, RoomUpdate,
         SubmitWord,      // Gửi từ nối chữ
         WordResult,      // Kết quả kiểm tra từ
         GameStart,       // Bắt đầu game
@@ -107,4 +111,4 @@ namespace WordChain.Common
     {
         public string Nickname { get; set; } = "";
     }
-}
+} 
