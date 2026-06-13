@@ -6,13 +6,10 @@ namespace WordChain.Common
     // Các loại gói tin giao tiếp giữa Client và Server
     public enum PacketType
     {
-        // ===== Tuần 3 =====
         Connect,
         ConnectOK,
         Chat,
         Disconnect,
-
-        // ===== Tuần 4 =====
         CreateRoom,      // Client yêu cầu tạo phòng
         CreateRoomOK,    // Server tạo phòng thành công
         JoinRoom,        // Client yêu cầu vào phòng
