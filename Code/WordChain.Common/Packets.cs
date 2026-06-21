@@ -1,32 +1,58 @@
+```csharp
 using System.Collections.Generic;
 using System.Text.Json;
 
 namespace WordChain.Common
 {
-    // Các loại gói tin giao tiếp giữa Client và Server
+    // =========================
+    // Các loại gói tin
+    // =========================
     public enum PacketType
     {
+        // ===== Tuần 3 =====
         Connect,
         ConnectOK,
         Chat,
         Disconnect,
-        CreateRoom,      // Client yêu cầu tạo phòng
-        CreateRoomOK,    // Server tạo phòng thành công
-        JoinRoom,        // Client yêu cầu vào phòng
-        JoinRoomOK,      // Vào phòng thành công
-        JoinRoomFail,    // Vào phòng thất bại
-        QuickJoin, 	 // vào phòng nhanh
-	QuickJoinOK, 	 // vào phòng nhanh thành công
-	QuickJoinFail,	 // vào phòng nhanh thất bại
+
+        // ===== Tuần 4 =====
+        CreateRoom,
+        CreateRoomOK,
+
+        JoinRoom,
+        JoinRoomOK,
+        JoinRoomFail,
+
+        QuickJoin,
+        QuickJoinOK,
+        QuickJoinFail,
+
         LeaveRoom,
-        RoomList, RoomUpdate,
-        SubmitWord,      // Gửi từ nối chữ
-        WordResult,      // Kết quả kiểm tra từ
-        GameStart,       // Bắt đầu game
-        NextTurn         // Chuyển lượt chơi
+
+        RoomList,
+        RoomUpdate,
+
+        // ===== Gameplay =====
+        StartGame,         // Chủ phòng yêu cầu bắt đầu game
+        GameStart,         // Server thông báo game bắt đầu
+
+        SubmitWord,
+        WordResult,
+        WordDuplicate,
+
+        NextTurn,
+        TurnUpdate,
+
+        TimeOut,
+
+        PlayerListUpdate,
+
+        GameOver
     }
 
-    // Cấu trúc Packet dùng để truyền dữ liệu
+    // =========================
+    // Packet chung
+    // =========================
     public class Packet
     {
         public PacketType Type { get; set; }
@@ -44,24 +70,32 @@ namespace WordChain.Common
         }
     }
 
+    // =========================
     // Thông tin người chơi
+    // =========================
     public class PlayerInfo
     {
         public string Id { get; set; } = "";
 
         public string Nickname { get; set; } = "";
+
+        public int Score { get; set; } = 0;
     }
 
-    // Thông tin phòng chơi
+    // =========================
+    // Thông tin phòng
+    // =========================
     public class RoomInfo
     {
-        // Mã phòng (VD: A1B2)
+        // Mã phòng
         public string RoomId { get; set; } = "";
 
-        // Người tạo phòng
+        // Chủ phòng
+        public string HostId { get; set; } = "";
+
         public string HostNickname { get; set; } = "";
 
-        // Danh sách người chơi trong phòng
+        // Danh sách người chơi
         public List<PlayerInfo> Players { get; set; } = new();
 
         // Số người hiện tại
@@ -73,39 +107,87 @@ namespace WordChain.Common
         // Số người tối đa
         public int MaxPlayers { get; set; } = 4;
 
-        // Trạng thái phòng
+        // Trạng thái game
         public bool IsPlaying { get; set; } = false;
+
+        // Vị trí người đang tới lượt
+        public int CurrentTurnIndex { get; set; } = 0;
     }
 
-    // Payload khi tạo phòng thành công
+    // =========================
+    // Tạo phòng
+    // =========================
     public class CreateRoomResponse
     {
         public string RoomId { get; set; } = "";
     }
 
-    // Payload khi yêu cầu vào phòng
+    // =========================
+    // Tham gia phòng
+    // =========================
     public class JoinRoomRequest
     {
         public string RoomId { get; set; } = "";
     }
 
-    // Payload gửi từ nối chữ
+    public class QuickJoinResponse
+    {
+        public string RoomId { get; set; } = "";
+    }
+
+    public class LeaveRoomRequest
+    {
+        public string RoomId { get; set; } = "";
+    }
+
+    // =========================
+    // Cập nhật phòng
+    // =========================
+    public class RoomUpdateInfo
+    {
+        public RoomInfo Room { get; set; } = new();
+    }
+
+    // =========================
+    // Gameplay
+    // =========================
     public class SubmitWordRequest
     {
         public string Word { get; set; } = "";
     }
 
-    // Payload trả kết quả từ đúng/sai
     public class WordResultResponse
     {
         public bool IsValid { get; set; }
 
         public string Message { get; set; } = "";
+
+        public int ScoreAwarded { get; set; } = 0;
     }
 
-    // Payload thông báo lượt chơi
-    public class NextTurnInfo
+    public class TurnUpdateInfo
     {
+        public string PlayerId { get; set; } = "";
+
+        public string Nickname { get; set; } = "";
+
+        public int RemainingSeconds { get; set; }
+    }
+
+    public class TimeOutInfo
+    {
+        public string PlayerId { get; set; } = "";
+
         public string Nickname { get; set; } = "";
     }
-} 
+
+    public class GameOverInfo
+    {
+        public string WinnerId { get; set; } = "";
+
+        public string WinnerNickname { get; set; } = "";
+
+        public int WinnerScore { get; set; }
+    }
+}
+```
