@@ -30,17 +30,10 @@ public partial class Form1 : Form
     private readonly Color _mauVangNhat = Color.FromArgb(252, 245, 228);
     private readonly Color _mauXanhNhat = Color.FromArgb(241, 246, 252);
     private readonly Color _mauTimNhat = Color.FromArgb(244, 241, 250);
-    private static readonly PacketType _goiTinTaoPhong = (PacketType)4;
-    private static readonly PacketType _goiTinTaoPhongThanhCong = (PacketType)5;
-    private static readonly PacketType _goiTinVaoPhong = (PacketType)6;
-    private static readonly PacketType _goiTinVaoPhongThanhCong = (PacketType)7;
-    private static readonly PacketType _goiTinVaoPhongThatBai = (PacketType)8;
-    private static readonly PacketType _goiTinChoiNhanh = (PacketType)9;
-    private static readonly PacketType _goiTinChoiNhanhThanhCong = (PacketType)10;
-    private static readonly PacketType _goiTinChoiNhanhThatBai = (PacketType)11;
-    private static readonly PacketType _goiTinDanhSachPhong = (PacketType)12;
-    private static readonly PacketType _goiTinCapNhatPhong = (PacketType)13;
-    private static readonly PacketType _goiTinRoiPhong = (PacketType)14;
+    private LobbyForm? _lobbyForm;
+    private GameForm? _gameForm;
+    private bool _dangMoHopThoai;
+    private bool _laChuPhongHienTai;
 
     private Label? _lblTrangThaiDangNhap;
     private Label? _lblTrangThaiDangKy;
@@ -101,17 +94,6 @@ public partial class Form1 : Form
             string quyenRieng = LaPhongRieng ? "Riêng tư" : "Công khai";
             return $"{MaPhong} • {TenPhong} • {NguoiChoi.Count}/{SoNguoiToiDa} • {CheDo} • {quyenRieng}";
         }
-    }
-
-    // Mô hình dữ liệu phòng tạm đặt ở client để nhánh giao diện tự build được
-    // ngay cả khi thư viện dùng chung chưa bổ sung đầy đủ lớp tuần 4.
-    private sealed class RoomInfo
-    {
-        public string RoomId { get; set; } = string.Empty;
-        public int MaxPlayers { get; set; } = 4;
-        public bool IsPlaying { get; set; }
-        public string HostNickname { get; set; } = string.Empty;
-        public List<PlayerInfo> Players { get; set; } = [];
     }
 
     private sealed class HopThoaiTaoPhong : Form
@@ -205,8 +187,8 @@ public partial class Form1 : Form
                 Location = new Point(222, 196),
                 Size = new Size(170, 31),
                 Minimum = 2,
-                Maximum = 8,
-                Value = 4,
+                Maximum = 4,
+                Value = 2,
                 Font = new Font("Segoe UI", 10.5F)
             };
 
@@ -223,7 +205,7 @@ public partial class Form1 : Form
                 Location = new Point(28, 262),
                 Size = new Size(170, 31),
                 Minimum = 10,
-                Maximum = 60,
+                Maximum = 20,
                 Value = 20,
                 Increment = 5,
                 Font = new Font("Segoe UI", 10.5F)
@@ -609,27 +591,66 @@ public partial class Form1 : Form
                 lblStatus.Text = "🟢 " + packet.Payload;
                 break;
 
-            case var _ when packet.Type == _goiTinTaoPhongThanhCong:
+            case PacketType.CreateRoomOK:
                 XuLyVaoPhongThanhCong(packet.Payload, true);
                 break;
 
-            case var _ when packet.Type == _goiTinVaoPhongThanhCong:
-            case var _ when packet.Type == _goiTinChoiNhanhThanhCong:
+            case PacketType.JoinRoomOK:
+            case PacketType.QuickJoinOK:
                 XuLyVaoPhongThanhCong(packet.Payload, false);
                 break;
 
-            case var _ when packet.Type == _goiTinVaoPhongThatBai:
-            case var _ when packet.Type == _goiTinChoiNhanhThatBai:
+            case PacketType.JoinRoomFail:
+            case PacketType.QuickJoinFail:
                 lblTrangThaiPhong.Text = packet.Payload;
                 lblTrangThaiPhong.Visible = true;
+                MessageBox.Show(packet.Payload, "Không thể vào phòng", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 break;
 
-            case var _ when packet.Type == _goiTinDanhSachPhong:
+            case PacketType.RoomList:
                 CapNhatDanhSachPhongTuServer(packet.Payload);
                 break;
 
-            case var _ when packet.Type == _goiTinCapNhatPhong:
+            case PacketType.UpdateRoom:
                 CapNhatPhongDangChoiTuServer(packet.Payload);
+                break;
+
+            case PacketType.UpdatePlayers:
+                if (_lobbyForm is not null && !_lobbyForm.IsDisposed)
+                {
+                    _lobbyForm.XuLyPacketTuServer(packet);
+                }
+
+                if (_gameForm is not null && !_gameForm.IsDisposed)
+                {
+                    _gameForm.XuLyPacketTuServer(packet);
+                }
+                break;
+
+            case PacketType.GameStart:
+                if (_lobbyForm is not null && !_lobbyForm.IsDisposed)
+                {
+                    _lobbyForm.XuLyPacketTuServer(packet);
+                }
+
+                MoGameForm(packet.Payload);
+                break;
+
+            case PacketType.NextTurn:
+            case PacketType.Timeout:
+            case PacketType.WordResult:
+            case PacketType.DuplicateWord:
+            case PacketType.Chat:
+            case PacketType.GameEnd:
+                if (_gameForm is not null && !_gameForm.IsDisposed)
+                {
+                    _gameForm.XuLyPacketTuServer(packet);
+                }
+
+                if (packet.Type == PacketType.GameEnd)
+                {
+                    MoResultForm(packet.Payload);
+                }
                 break;
         }
     }
@@ -680,9 +701,12 @@ public partial class Form1 : Form
         }
 
         _phongHienTai = phong;
-        BatDauDemNguocLuot(phong.SoGiayMoiLuot);
-        CapNhatGiaoDienPhongHienTai();
-        HienManHinh(tabPhongChoi);
+        _laChuPhongHienTai = phong.NguoiChoi.Any(
+            n => n.TenHienThi.Equals(_tenNguoiChoiHienTai, StringComparison.OrdinalIgnoreCase) && n.LaChuPhong);
+
+        LamMoiDanhSachPhong(phong.MaPhong);
+        MoLobbyForm(phong.MaPhong, _laChuPhongHienTai, roomInfo);
+
         lblTrangThaiPhong.Text = laPhongMoi
             ? $"Phòng mới đã được tạo. Mã phòng: {phong.MaPhong}"
             : $"Bạn đã vào phòng {phong.MaPhong}.";
@@ -767,10 +791,118 @@ public partial class Form1 : Form
             _phongHienTai.MaPhong.Equals(roomInfo.RoomId, StringComparison.OrdinalIgnoreCase))
         {
             _phongHienTai = phong;
-            CapNhatGiaoDienPhongHienTai();
+            _laChuPhongHienTai = phong.NguoiChoi.Any(
+                n => n.TenHienThi.Equals(_tenNguoiChoiHienTai, StringComparison.OrdinalIgnoreCase) && n.LaChuPhong);
+
+            if (_lobbyForm is not null && !_lobbyForm.IsDisposed)
+            {
+                _lobbyForm.CapNhatNguoiChoiTrongPhong(roomInfo.Players.ConvertAll(p => p.Nickname));
+                _lobbyForm.CapNhatQuyenChuPhong(_laChuPhongHienTai, roomInfo.Players.Count);
+            }
         }
 
         LamMoiDanhSachPhong(_phongHienTai?.MaPhong);
+    }
+
+    private void MoLobbyForm(string roomCode, bool laChuPhong, RoomInfo roomInfo)
+    {
+        DongLobbyVaGameForm();
+
+        Hide();
+        _lobbyForm = new LobbyForm(roomCode, _writer, laChuPhong)
+        {
+            StartPosition = FormStartPosition.CenterScreen
+        };
+
+        _lobbyForm.CapNhatNguoiChoiTrongPhong(roomInfo.Players.ConvertAll(p => p.Nickname));
+        _lobbyForm.CapNhatQuyenChuPhong(laChuPhong, roomInfo.Players.Count);
+        _lobbyForm.GameStarted += _ => { /* GameStart packet sẽ mở GameForm */ };
+        _lobbyForm.FormClosed += async (_, _) =>
+        {
+            await GuiYeuCauRoiPhong();
+            _phongHienTai = null;
+            Show();
+            MoSanhCho();
+        };
+
+        _lobbyForm.Show();
+    }
+
+    private void MoGameForm(string payload)
+    {
+        if (_phongHienTai is null)
+        {
+            return;
+        }
+
+        _lobbyForm?.Hide();
+
+        if (_gameForm is null || _gameForm.IsDisposed)
+        {
+            _gameForm = new GameForm(_phongHienTai.MaPhong, _writer, _tenNguoiChoiHienTai)
+            {
+                StartPosition = FormStartPosition.CenterScreen
+            };
+
+            _gameForm.FormClosed += async (_, _) =>
+            {
+                await GuiYeuCauRoiPhong();
+                _phongHienTai = null;
+                _lobbyForm?.Close();
+                Show();
+                MoSanhCho();
+            };
+        }
+
+        _gameForm.XuLyPacketTuServer(new Packet { Type = PacketType.GameStart, Payload = payload });
+        _gameForm.Show();
+        _gameForm.BringToFront();
+    }
+
+    private void MoResultForm(string payload)
+    {
+        GameEndResult? ketQua = JsonSerializer.Deserialize<GameEndResult>(payload);
+        if (ketQua is null)
+        {
+            return;
+        }
+
+        _gameForm?.Hide();
+
+        using ResultForm resultForm = new()
+        {
+            StartPosition = FormStartPosition.CenterScreen
+        };
+
+        var bangDiem = ketQua.Scores.ConvertAll(s => new ResultForm.KetQuaNguoiChoi
+        {
+            TenNguoiChoi = s.Nickname,
+            Diem = s.Score
+        });
+
+        resultForm.HienThiKetQua(ketQua.WinnerNickname, bangDiem, ketQua.Reason);
+        resultForm.QuayVeSanhCho += () =>
+        {
+            _gameForm?.Close();
+            _lobbyForm?.Close();
+        };
+
+        resultForm.ShowDialog();
+    }
+
+    private void DongLobbyVaGameForm()
+    {
+        if (_lobbyForm is not null && !_lobbyForm.IsDisposed)
+        {
+            _lobbyForm.Close();
+            _lobbyForm = null;
+        }
+
+        if (_gameForm is not null && !_gameForm.IsDisposed)
+        {
+            _gameForm.Close();
+            _gameForm = null;
+        }
     }
 
     private bool KiemTraKetNoiServer()
@@ -787,25 +919,50 @@ public partial class Form1 : Form
 
     private async Task GuiYeuCauTaoPhong()
     {
-        if (_writer is null)
+        if (_writer is null || _caiDatPhongCho is null)
         {
             return;
         }
 
-        var packet = new Packet { Type = _goiTinTaoPhong, Payload = "" };
+        var request = new CreateRoomRequest
+        {
+            RoomName = _caiDatPhongCho.TenPhong,
+            MaxPlayers = _caiDatPhongCho.SoNguoiToiDa,
+            SecondsPerTurn = _caiDatPhongCho.SoGiayMoiLuot,
+            IsPrivate = _caiDatPhongCho.LaPhongRieng,
+            Password = _caiDatPhongCho.MatKhau
+        };
+
+        var packet = new Packet
+        {
+            Type = PacketType.CreateRoom,
+            Payload = JsonSerializer.Serialize(request)
+        };
+
         await _writer.WriteLineAsync(packet.ToJson());
         lblTrangThaiPhong.Text = "Đang tạo phòng...";
         lblTrangThaiPhong.Visible = true;
     }
 
-    private async Task GuiYeuCauVaoPhong(string maPhong)
+    private async Task GuiYeuCauVaoPhong(string maPhong, string matKhau = "")
     {
         if (_writer is null)
         {
             return;
         }
 
-        var packet = new Packet { Type = _goiTinVaoPhong, Payload = maPhong.Trim().ToUpperInvariant() };
+        var request = new JoinRoomRequest
+        {
+            RoomId = maPhong.Trim().ToUpperInvariant(),
+            Password = matKhau.Trim()
+        };
+
+        var packet = new Packet
+        {
+            Type = PacketType.JoinRoom,
+            Payload = JsonSerializer.Serialize(request)
+        };
+
         await _writer.WriteLineAsync(packet.ToJson());
         lblTrangThaiPhong.Text = "Đang vào phòng...";
         lblTrangThaiPhong.Visible = true;
@@ -818,7 +975,7 @@ public partial class Form1 : Form
             return;
         }
 
-        var packet = new Packet { Type = _goiTinChoiNhanh, Payload = "" };
+        var packet = new Packet { Type = PacketType.QuickJoin, Payload = "" };
         await _writer.WriteLineAsync(packet.ToJson());
         lblTrangThaiPhong.Text = "Đang tìm phòng trống...";
         lblTrangThaiPhong.Visible = true;
@@ -831,7 +988,7 @@ public partial class Form1 : Form
             return;
         }
 
-        var packet = new Packet { Type = _goiTinRoiPhong, Payload = "" };
+        var packet = new Packet { Type = PacketType.LeaveRoom, Payload = "" };
         await _writer.WriteLineAsync(packet.ToJson());
     }
 
@@ -840,12 +997,18 @@ public partial class Form1 : Form
     {
         btnTaoPhong.Click -= btnTaoPhong_Click;
         btnThamGiaPhong.Click -= btnThamGiaPhong_Click;
+        lblIconThamGiaPhong.Click -= btnThamGiaPhong_Click;
+        lblTieuDeThamGiaPhong.Click -= btnThamGiaPhong_Click;
+        lblMoTaThamGiaPhong.Click -= btnThamGiaPhong_Click;
         btnGuiTu.Click -= btnGuiTu_Click;
         btnGuiChat.Click -= btnGuiChat_Click;
         btnRoiPhong.Click -= btnRoiPhong_Click;
 
         btnTaoPhong.Click += (_, _) => MoQuyTrinhTaoPhong();
         btnThamGiaPhong.Click += (_, _) => MoQuyTrinhThamGiaPhong();
+        lblIconThamGiaPhong.Click += (_, _) => MoQuyTrinhThamGiaPhong();
+        lblTieuDeThamGiaPhong.Click += (_, _) => MoQuyTrinhThamGiaPhong();
+        lblMoTaThamGiaPhong.Click += (_, _) => MoQuyTrinhThamGiaPhong();
         btnGuiTu.Click += (_, _) => GuiTuNoiBo();
         btnGuiChat.Click += (_, _) => GuiChatNoiBo();
         btnRoiPhong.Click += (_, _) => RoiPhongNoiBo();
@@ -2203,62 +2366,98 @@ public partial class Form1 : Form
     }
 
     // Tạo phòng qua server với mã 4 ký tự ngẫu nhiên.
-    private void MoQuyTrinhTaoPhong()
+    private async void MoQuyTrinhTaoPhong()
     {
-        CapNhatTrangThaiMenuSanhCho(btnMenuTaoPhong);
-
-        using HopThoaiTaoPhong hopThoai = new(_tenNguoiChoiHienTai);
-        if (hopThoai.ShowDialog(this) != DialogResult.OK)
+        if (_dangMoHopThoai)
         {
             return;
         }
 
-        _caiDatPhongCho = new CaiDatPhongCho
+        if (!KiemTraKetNoiServer())
         {
-            TenPhong = hopThoai.TenPhong,
-            CheDo = hopThoai.CheDo,
-            SoNguoiToiDa = hopThoai.SoNguoiToiDa,
-            SoGiayMoiLuot = hopThoai.SoGiayMoiLuot,
-            LaPhongRieng = hopThoai.LaPhongRieng,
-            MatKhau = hopThoai.MatKhau
-        };
+            return;
+        }
 
-        TaoPhongNoiBo();
+        _dangMoHopThoai = true;
+        try
+        {
+            CapNhatTrangThaiMenuSanhCho(btnMenuTaoPhong);
+
+            using HopThoaiTaoPhong hopThoai = new(_tenNguoiChoiHienTai);
+            if (hopThoai.ShowDialog(this) != DialogResult.OK)
+            {
+                return;
+            }
+
+            _caiDatPhongCho = new CaiDatPhongCho
+            {
+                TenPhong = hopThoai.TenPhong,
+                CheDo = hopThoai.CheDo,
+                SoNguoiToiDa = hopThoai.SoNguoiToiDa,
+                SoGiayMoiLuot = hopThoai.SoGiayMoiLuot,
+                LaPhongRieng = hopThoai.LaPhongRieng,
+                MatKhau = hopThoai.MatKhau
+            };
+
+            await GuiYeuCauTaoPhong();
+        }
+        finally
+        {
+            _dangMoHopThoai = false;
+        }
     }
 
-    private void MoQuyTrinhThamGiaPhong()
+    private async void MoQuyTrinhThamGiaPhong()
     {
-        CapNhatTrangThaiMenuSanhCho(btnMenuThamGiaPhong);
-
-        using HopThoaiChonThamGia hopThoaiChon = new();
-        if (hopThoaiChon.ShowDialog(this) != DialogResult.OK)
+        if (_dangMoHopThoai)
         {
             return;
         }
 
-        if (hopThoaiChon.LaThamGiaNhanh)
-        {
-            ThamGiaNhanhNoiBo();
-            return;
-        }
-
-        if (!hopThoaiChon.LaNhapMa)
+        if (!KiemTraKetNoiServer())
         {
             return;
         }
 
-        string? maPhongMacDinh = lstPhongNoiBat.SelectedItem is PhongClient phongDaChon
-            ? phongDaChon.MaPhong
-            : null;
-
-        bool hienMatKhau = lstPhongNoiBat.SelectedItem is PhongClient phongDaChonRieng && phongDaChonRieng.LaPhongRieng;
-        using HopThoaiNhapMaPhong hopThoaiMa = new(maPhongMacDinh, hienMatKhau);
-        if (hopThoaiMa.ShowDialog(this) != DialogResult.OK)
+        _dangMoHopThoai = true;
+        try
         {
-            return;
-        }
+            CapNhatTrangThaiMenuSanhCho(btnMenuThamGiaPhong);
 
-        ThamGiaPhongNoiBo(hopThoaiMa.MaPhong, hopThoaiMa.MatKhau);
+            using HopThoaiChonThamGia hopThoaiChon = new();
+            if (hopThoaiChon.ShowDialog(this) != DialogResult.OK)
+            {
+                return;
+            }
+
+            if (hopThoaiChon.LaThamGiaNhanh)
+            {
+                await GuiYeuCauThamGiaNhanh();
+                return;
+            }
+
+            if (!hopThoaiChon.LaNhapMa)
+            {
+                return;
+            }
+
+            string? maPhongMacDinh = lstPhongNoiBat.SelectedItem is PhongClient phongDaChon
+                ? phongDaChon.MaPhong
+                : null;
+
+            bool hienMatKhau = lstPhongNoiBat.SelectedItem is PhongClient phongDaChonRieng && phongDaChonRieng.LaPhongRieng;
+            using HopThoaiNhapMaPhong hopThoaiMa = new(maPhongMacDinh, hienMatKhau);
+            if (hopThoaiMa.ShowDialog(this) != DialogResult.OK)
+            {
+                return;
+            }
+
+            await GuiYeuCauVaoPhong(hopThoaiMa.MaPhong, hopThoaiMa.MatKhau);
+        }
+        finally
+        {
+            _dangMoHopThoai = false;
+        }
     }
 
     private void ThamGiaPhongDangChon()
@@ -2634,7 +2833,7 @@ public partial class Form1 : Form
         CapNhatTrangThaiDanhSach();
     }
 
-// kết nối tới server 
+    // kết nối tới server 
     private async Task ConnectToServer(string nickname)
     {
         string ip = "127.0.0.1";   // Ẩn, cố định
@@ -2682,13 +2881,13 @@ public partial class Form1 : Form
             string.IsNullOrWhiteSpace(txtDangKyNhapLaiMatKhau.Text))
         {
             HienThiTrangThai(_lblTrangThaiDangKy, "Bạn hãy điền đủ thông tin trước khi tạo tài khoản nhé.", _mauLoi);
-                return;
+            return;
         }
 
         if (txtDangKyMatKhau.Text != txtDangKyNhapLaiMatKhau.Text)
         {
             HienThiTrangThai(_lblTrangThaiDangKy, "Hai ô mật khẩu chưa giống nhau, mình kiểm tra lại nhé.", _mauLoi);
-                return;
+            return;
         }
 
         HienThiTrangThai(_lblTrangThaiDangKy, "Xong rồi, tài khoản của bạn đã sẵn sàng để tiếp tục.", _mauThanhCong);
@@ -2789,7 +2988,7 @@ public partial class Form1 : Form
     }
 
     // bảng xếp hạng (tuần 5)
-    private void btnBangXepHang_Click(object sender, EventArgs e) 
+    private void btnBangXepHang_Click(object sender, EventArgs e)
     {
         MessageBox.Show("Tính năng bảng xếp hạng đang được phát triển.", "Thông báo",
             MessageBoxButtons.OK, MessageBoxIcon.Information);
