@@ -6,11 +6,17 @@ namespace WordChain.Client;
 
 public partial class ResultForm : Form
 {
+    private readonly string _roomCode;
+    private readonly StreamReader? _reader;
+    private readonly StreamWriter? _writer;
+    private readonly bool _laChuPhong;
     public sealed class KetQuaNguoiChoi
     {
         public string TenNguoiChoi { get; set; } = string.Empty;
         public int Diem { get; set; }
     }
+
+    public event Action? QuayVeSanhCho;
 
     public ResultForm()
     {
@@ -18,21 +24,22 @@ public partial class ResultForm : Form
         ApDungTrangThaiMacDinh();
     }
 
-    // Gán dữ liệu mặc định để form luôn mở ổn định kể cả khi chưa có kết quả thật.
     private void ApDungTrangThaiMacDinh()
     {
         lblWinner.Text = "🏆 Người thắng: Chưa xác định";
     }
 
-    public void HienThiKetQua(string tenNguoiThang, IEnumerable<KetQuaNguoiChoi> bangDiem)
+    public void HienThiKetQua(string tenNguoiThang, IEnumerable<KetQuaNguoiChoi> bangDiem, string? lyDo = null)
     {
         string tenThang = string.IsNullOrWhiteSpace(tenNguoiThang)
             ? "Chưa xác định"
             : tenNguoiThang.Trim();
 
-        lblWinner.Text = $"🏆 Người thắng: {tenThang}";
-        lstFinalScores.Items.Clear();
+        lblWinner.Text = string.IsNullOrWhiteSpace(lyDo)
+            ? $"🏆 Người thắng: {tenThang}"
+            : $"🏆 Người thắng: {tenThang}\n{lyDo}";
 
+        lstFinalScores.Items.Clear();
         foreach (KetQuaNguoiChoi nguoiChoi in bangDiem)
         {
             ListViewItem dong = new(nguoiChoi.TenNguoiChoi);
@@ -43,9 +50,21 @@ public partial class ResultForm : Form
 
     private void btnBackToLobby_Click(object? sender, EventArgs e)
     {
-        // Tạm đóng form để thuận tiện test giao diện.
-        // Toàn có thể thay thế bằng điều hướng thật về phòng chờ sau.
+        QuayVeSanhCho?.Invoke();
         DialogResult = DialogResult.OK;
         Close();
+    }
+
+    private void lstFinalScores_SelectedIndexChanged(object? sender, EventArgs e)
+    {
+    }
+
+    public ResultForm(string roomCode, StreamReader? reader, StreamWriter? writer, bool laChuPhong)
+    {
+        InitializeComponent();
+        _roomCode = roomCode;
+        _reader = reader;
+        _writer = writer;
+        _laChuPhong = laChuPhong;
     }
 }
