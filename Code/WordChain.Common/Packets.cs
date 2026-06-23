@@ -187,4 +187,4 @@ namespace WordChain.Common
         public int WinnerScore { get; set; }
     }
 }
-```
+
