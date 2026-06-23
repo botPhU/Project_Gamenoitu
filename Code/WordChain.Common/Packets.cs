@@ -1,4 +1,3 @@
-```csharp
 using System.Collections.Generic;
 using System.Text.Json;
 
@@ -9,13 +8,11 @@ namespace WordChain.Common
     // =========================
     public enum PacketType
     {
-        // ===== Tuần 3 =====
         Connect,
         ConnectOK,
         Chat,
         Disconnect,
 
-        // ===== Tuần 4 =====
         CreateRoom,
         CreateRoomOK,
 
