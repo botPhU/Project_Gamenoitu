@@ -291,10 +291,6 @@ public partial class GameForm : Form
         XoaOChat();
     }
         // Dùng cho trường hợp server báo kết thúc trận và form cần mở màn hình kết quả sau này.
-    public void ThongBaoMoManKetQua(string payload)
-    {
-        YeuCauMoManKetQua?.Invoke(payload);
-    }
 
     private void HienThiThongBaoAnToan(string thongBao)
     {
