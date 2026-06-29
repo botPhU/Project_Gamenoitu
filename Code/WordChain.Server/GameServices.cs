@@ -1,3 +1,6 @@
+using System.Text.Json;
+using WordChain.Common;
+
 internal static class GameService
 {
     public static async Task HandleStartGameRequestAsync(ConnectedClient client, string roomCode)
@@ -297,33 +300,23 @@ internal static class GameService
             ? loser.Info.Nickname
             : "???";
 
-        // Lấy danh sách nickname của những người còn lại (không phải người thua)
-        List<string> survivorNicknames = playerIds
+        string winnerNickname = playerIds
             .Where(id => id != loserClientId)
             .Select(id => ServerState.Clients.TryGetValue(id, out ConnectedClient? c) ? c.Info.Nickname : null)
-            .Where(n => !string.IsNullOrWhiteSpace(n))
-            .Select(n => n!)
-            .ToList();
+            .FirstOrDefault(n => !string.IsNullOrWhiteSpace(n)) ?? "???";
 
-        string winnerNickname;
-
-        if (session is not null && survivorNicknames.Count > 0)
+        if (session is not null)
         {
-            // Tìm người có điểm cao nhất trong số những người còn sống sót
-            string topScorer = survivorNicknames
-                .Select(nick => (Nickname: nick, Score: session.Scores.GetValueOrDefault(nick, 0)))
-                .OrderByDescending(x => x.Score)
-                .ThenBy(x => x.Nickname)
-                .Select(x => x.Nickname)
-                .First();
+            string topScorer = session.Scores
+                .OrderByDescending(kv => kv.Value)
+                .ThenBy(kv => kv.Key)
+                .Select(kv => kv.Key)
+                .FirstOrDefault() ?? winnerNickname;
 
-            // Nếu không ai có điểm (ví dụ game kết thúc ngay lượt đầu),
-            // vẫn chọn người đầu tiên trong danh sách sống sót làm winner
-            winnerNickname = topScorer;
-        }
-        else
-        {
-            winnerNickname = survivorNicknames.FirstOrDefault() ?? "???";
+            if (session.Scores.GetValueOrDefault(topScorer) > 0)
+            {
+                winnerNickname = topScorer;
+            }
         }
 
         var endResult = new GameEndResult
