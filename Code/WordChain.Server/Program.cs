@@ -65,7 +65,8 @@ class Program
                         client.Info = new PlayerInfo
                         {
                             Id = clientId,
-                            Nickname = packet.Payload.Trim()
+                            Nickname = string.IsNullOrWhiteSpace(packet.Payload)? "Unknown"
+    :                       packet.Payload.Trim()
                         };
                         Console.WriteLine($"Người chơi [{client.Info.Nickname}] đã tham gia.");
                         await NetworkHelper.SendAsync(client, new Packet
