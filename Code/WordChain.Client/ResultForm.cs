@@ -6,7 +6,7 @@ namespace WordChain.Client;
 
 public partial class ResultForm : Form
 {
-    private readonly string _roomCode;
+    private string _roomCode = string.Empty;
     private readonly StreamReader? _reader;
     private readonly StreamWriter? _writer;
     private readonly bool _laChuPhong;
