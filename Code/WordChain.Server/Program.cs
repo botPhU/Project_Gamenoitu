@@ -57,7 +57,7 @@ class Program
                     continue;
                 }
 
-                Console.WriteLine($"[{client.Info.Nickname}|{clientId[..8]}]: {packet.Type}");
+                Console.WriteLine($"[{client.Info.Nickname ?? "Unknown"}|{clientId[..8]}]: {packet.Type}");
 
                 switch (packet.Type)
                 {
