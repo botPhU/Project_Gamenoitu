@@ -417,6 +417,7 @@ internal static class RoomService
 
         if (roomEmpty)
         {
+            room.Session?.TurnTimerCts?.Cancel();
             ServerState.Rooms.TryRemove(room.RoomId, out _);
         }
         else
