@@ -535,10 +535,14 @@ internal static class GameService
 
         lock (room.SyncRoot)
         {
-            if (session.CurrentTurnClientId != client.Id)
+            bool isMyTurn;
+
+            lock (room.SyncRoot)
             {
-                return;
+                isMyTurn = session.CurrentTurnClientId == client.Id;
             }
+
+            if (!isMyTurn) return;
         }
 
         if (!VietnameseDictionary.LaDungHaiTu(word))
